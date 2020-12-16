@@ -10,6 +10,8 @@ export class EnvironmentProvider implements vscode.TreeDataProvider<GalasaEnviro
         this.galasaPath = galasaPath;
         this.configPath = path.join(galasaPath, "vscode", "envconfig");
         if(!fs.existsSync(this.configPath)) {
+            fs.mkdirSync(galasaPath)
+            fs.mkdirSync(path.join(galasaPath, "vscode"))
             fs.writeFileSync(this.configPath, "");
             this.envPath = undefined;
         } else {

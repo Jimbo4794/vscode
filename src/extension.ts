@@ -14,8 +14,10 @@ import { GalasaConfigurationProvider } from "./local/debugger/GalasaConfiguratio
 import commentjson = require('comment-json');
 import { addEnvrionment, deleteEnvironment } from './local/EnvironmentController';
 import { setupWorkspace } from './config/setup';
+import { O_SYMLINK } from 'constants';
 
-const galasaPath = path.join(process.env.HOME ? process.env.HOME : "", ".galasa");
+
+const galasaPath = path.join(process.env.USERPROFILE ? process.env.USERPROFILE : "", process.env.HOME ? process.env.HOME : "", ".galasa");
 
 export function activate(context: vscode.ExtensionContext) {
 

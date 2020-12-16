@@ -7,22 +7,26 @@ export async function getDebugConfig(testClass : TestCase | string | GherkinTest
     let maven = "";
     let localMaven : string | undefined = workspace.getConfiguration("galasa").get("maven-local");
     if(localMaven && localMaven.trim().length != 0) {
-        maven = maven + "--localmaven file:" + workspace.getConfiguration("galasa").get("maven-local") + " ";
+        // This is stupid code, fix the /
+        maven = maven + "--localmaven file:/" + workspace.getConfiguration("galasa").get("maven-local") + " ";
+        maven = maven.replace(/\\/g,"/");
     }
     let remoteMaven : string | undefined = workspace.getConfiguration("galasa").get("maven-remote");
     if(remoteMaven && remoteMaven.trim().length != 0) {
         maven = maven + "--remotemaven " + workspace.getConfiguration("galasa").get("maven-remote") + " ";
     }
+    
 
     let bootstrap : string | undefined = workspace.getConfiguration("galasa").get("bootstrap");
     if(!bootstrap) {
         bootstrap = "file:" + path.join(galasaPath, "bootstrap.properties");
     }
-    const bootstrapURI = "--bootstrap " + bootstrap + " ";
+    const bootstrapURI = "--bootstrap " + bootstrap.replace(/\\/g,"/")  + " ";
 
-    const overridesURI = buildOverrides(galasaPath, context, environmentProvider, bootstrap, env);
+    const overridesURI = buildOverrides(galasaPath, context, environmentProvider, bootstrap, env).replace(/\\/g,"/");
 
-    const workspaceObr = await buildLocalObr(context);
+    let workspaceObr = await buildLocalObr(context);
+    workspaceObr = workspaceObr.replace(/\\/g,"/");
     
     let testType = "--test ";
     if (testClass instanceof TestCase) {
@@ -111,9 +115,9 @@ export async function buildLocalObr(context : ExtensionContext) : Promise<string
         return "";
     }
     manifests.forEach(file => {
-        const bundleName = findPomField(file.toString().replace("%40", "@").replace("file://", ""), "artifactId");
-        const groupName = findPomField(file.toString().replace("%40", "@").replace("file://", ""), "groupId");
-        const version = findPomField(file.toString().replace("%40", "@").replace("file://", ""), "version");
+        const bundleName = findPomField(file.fsPath, "artifactId");
+        const groupName = findPomField(file.fsPath, "groupId");
+        const version = findPomField(file.fsPath, "version");
         dependencies = dependencies + "<dependency><groupId>" + groupName + "</groupId>" +
             "<artifactId>"+ bundleName +"</artifactId>" +
             "<version>"+ version + "</version>" +
@@ -181,7 +185,9 @@ function getBuildWorkspaceObrTask(context : ExtensionContext) : Task {
     } else {
         settings = " --settings " + settings;
     }
-    return new Task({type : "shell"}, TaskScope.Workspace.toString(), "Workspace Obr", new ShellExecution("mvn install -f " + path.join(context.extensionPath, "galasa-workspace", "obr") + settings));
+
+    let obrPath = path.join(context.extensionPath, "galasa-workspace", "obr").replace(/\\/g,"/");
+    return new Task({type : "shell"}, TaskScope.Workspace.toString(), "Workspace Obr", new ShellExecution("mvn install -f " + obrPath + settings));
 }
 
 function findEnvironment(env : string, galasaPath : string) : string | undefined {
