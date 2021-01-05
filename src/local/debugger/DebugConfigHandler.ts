@@ -2,13 +2,18 @@ import { DebugConfiguration, workspace, ExtensionContext, tasks, Task, TaskScope
 import * as fs from 'fs';
 import { EnvironmentProvider } from '../views/TreeViewEnvironmentProperties';
 var path = require('path');
+var os = require('os');
 
 export async function getDebugConfig(testClass : TestCase | string | GherkinTestCase, galasaPath : string, context : ExtensionContext, environmentProvider : EnvironmentProvider, args? : string, env? : string) : Promise<DebugConfiguration> {
     let maven = "";
+    let filePrefix = "file://";
+    if (os.platform() == "win32") {
+        filePrefix = "file:///"
+    }
+
     let localMaven : string | undefined = workspace.getConfiguration("galasa").get("maven-local");
     if(localMaven && localMaven.trim().length != 0) {
-        // This is stupid code, fix the /
-        maven = maven + "--localmaven file:/" + workspace.getConfiguration("galasa").get("maven-local") + " ";
+        maven = maven + "--localmaven " + filePrefix + workspace.getConfiguration("galasa").get("maven-local") + " ";
         maven = maven.replace(/\\/g,"/");
     }
     let remoteMaven : string | undefined = workspace.getConfiguration("galasa").get("maven-remote");
@@ -16,14 +21,13 @@ export async function getDebugConfig(testClass : TestCase | string | GherkinTest
         maven = maven + "--remotemaven " + workspace.getConfiguration("galasa").get("maven-remote") + " ";
     }
     
-
     let bootstrap : string | undefined = workspace.getConfiguration("galasa").get("bootstrap");
     if(!bootstrap) {
-        bootstrap = "file:" + path.join(galasaPath, "bootstrap.properties");
+        bootstrap = filePrefix + path.join(galasaPath, "bootstrap.properties");
     }
     const bootstrapURI = "--bootstrap " + bootstrap.replace(/\\/g,"/")  + " ";
 
-    const overridesURI = buildOverrides(galasaPath, context, environmentProvider, bootstrap, env).replace(/\\/g,"/");
+    const overridesURI = buildOverrides(galasaPath, context, environmentProvider, bootstrap, filePrefix, env).replace(/\\/g,"/");
 
     let workspaceObr = await buildLocalObr(context);
     workspaceObr = workspaceObr.replace(/\\/g,"/");
@@ -45,7 +49,7 @@ export async function getDebugConfig(testClass : TestCase | string | GherkinTest
         name: "Galasa Debug",
         type: "java",
         request: "launch",
-        classPaths: [path.join(context.extensionPath, "lib", "galasa-boot.jar")],
+        classPaths: [path.join(context.extensionPath, "lib", "galasa-boot.jar").replace(/\\/g,"/")],
         mainClass: "dev.galasa.boot.Launcher",
         args: workspaceObr + extraArgs + maven + "--obr mvn:dev.galasa/dev.galasa.uber.obr/" + getGalasaVersion(context) + "/obr " 
             + bootstrapURI + overridesURI + testType + testClass
@@ -61,7 +65,7 @@ export function getGalasaVersion(context : ExtensionContext) : string  {
     return version;
 }
 
-function buildOverrides(galasaPath : string, context : ExtensionContext, environmentProvider : EnvironmentProvider, bootstrap : string, env? : string) : string {
+function buildOverrides(galasaPath : string, context : ExtensionContext, environmentProvider : EnvironmentProvider, bootstrap : string, filePrefix : string, env? : string) : string {
     if(!fs.existsSync(path.join(context.extensionPath, "galasa-workspace"))) {
         fs.mkdirSync(path.join(context.extensionPath, "galasa-workspace"));
     }
@@ -92,10 +96,15 @@ function buildOverrides(galasaPath : string, context : ExtensionContext, environ
             }
         });
     }
+
+    let resultsPath = filePrefix + path.join(galasaPath, "ras").replace(/\\/g,"/");
+    let credsPath = filePrefix + path.join(galasaPath, "credentials.properties").replace(/\\/g,"/");
+    let bootstrapPath = bootstrap.replace(/\\/g,"/");
+
     
-    overrideProperty(filepath, "framework.resultarchive.store", "file:" + path.join(galasaPath, "ras"));
-    overrideProperty(filepath, "framework.credentials.store", "file:" + path.join(galasaPath, "credentials.properties"));
-    overrideProperty(filepath, "framework.bootstrap.url", bootstrap);
+    overrideProperty(filepath, "framework.resultarchive.store", resultsPath);
+    overrideProperty(filepath, "framework.credentials.store",credsPath );
+    overrideProperty(filepath, "framework.bootstrap.url", bootstrapPath);
 
     let requestor : string | undefined = workspace.getConfiguration("galasa").get("requestor");
     if(!requestor) {
@@ -103,7 +112,7 @@ function buildOverrides(galasaPath : string, context : ExtensionContext, environ
     }
     overrideProperty(filepath, "framework.run.requestor", requestor);
 
-    return "--overrides file:" + filepath + " ";
+    return "--overrides " + filePrefix + filepath + " ";
 }
 
 export async function buildLocalObr(context : ExtensionContext) : Promise<string> {
